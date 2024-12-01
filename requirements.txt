@@ -3,3 +3,6 @@ streamlit
 langchain
 langchain-community
 python-dotenv
+pymupdf
+beautifulsoup4
+requests
