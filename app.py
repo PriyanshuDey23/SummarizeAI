@@ -9,93 +9,108 @@ from utils import *
 
 # Load environment variables
 load_dotenv()
-
-# Access API key from environment
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 
-# Summarization chain function
+# Function to generate summary
 def generate_summary(input_text, tone, word_count):
-
-    # Initialize the LLM model
     llm = ChatGoogleGenerativeAI(
         model="gemini-1.5-flash-8b", temperature=1, api_key=GOOGLE_API_KEY
     )
 
-    # Set up the prompt template
     prompt = PromptTemplate(
         input_variables=["text", "tone", "word_count"],
-        template=PROMPT,  # Imported from prompt.py
+        template=PROMPT,
     )
 
-    # Create the LLM chain
     llm_chain = LLMChain(llm=llm, prompt=prompt)
 
-    # Generate and return the response
     return llm_chain.run({"text": input_text, "tone": tone, "word_count": word_count})
 
-# Consolidated input handling function
-def get_input_data():
+# Streamlit Page Config
+st.set_page_config(page_title="Text Summarizer", layout="wide")
 
-    uploaded_file = st.file_uploader("Upload a PDF file", type="pdf")
-    url = st.text_input("Enter a URL")
+# Custom CSS for better UI
+st.markdown("""
+    <style>
+        .stTextArea textarea { font-size: 14px !important; }
+        .stDownloadButton button { width: 100%; }
+        .css-18e3th9 { padding-top: 10px !important; }
+    </style>
+""", unsafe_allow_html=True)
+
+# App Title
+st.title("📖 AI-Powered Text Summarizer")
+
+# Tabs for Input Options
+tab1, tab2, tab3 = st.tabs(["✍️ Text Input", "🔗 URL Input", "📄 PDF Upload"])
+
+# Variables for input text
+user_input = None
+input_type = None
+
+# Text Input Tab
+with tab1:
     text = st.text_area("Enter your text", height=200)
-
-    # Handle PDF input
-    if uploaded_file:
-        extracted_text = extract_text_from_pdf(uploaded_file)
-        input_type = "PDF"
-    # Handle URL input
-    elif url:
-        extracted_text = extract_text_from_url(url)
-        input_type = "URL"
-    # Handle direct text input
-    elif text:
-        extracted_text = text
+    if text:
+        user_input = text
         input_type = "Text"
-    else:
-        extracted_text = None
-        input_type = None
 
-    return extracted_text, input_type
+# URL Input Tab
+with tab2:
+    url = st.text_input("Enter a URL")
+    if url:
+        user_input = extract_text_from_url(url)
+        input_type = "URL"
 
-# Streamlit App UI
-st.set_page_config(page_title="Text Summarizer")
-st.header("Text Summarizer")
+# PDF Upload Tab
+with tab3:
+    uploaded_file = st.file_uploader("Upload a PDF file", type="pdf")
+    if uploaded_file:
+        user_input = extract_text_from_pdf(uploaded_file)
+        input_type = "PDF"
 
-# Get user input (file, URL, or direct text)
-user_input, input_type = get_input_data()
-
-# Display extracted or entered text
+# Display Extracted Text if Available
 if user_input:
-    st.text_area(f"Extracted Text from {input_type}", user_input, height=200)
+    st.markdown(f"### Extracted Text from **{input_type}**")
+    st.text_area("Preview", user_input, height=200)
 
-# Parameters for summarization (tone and word count)
-column_1, column_2 = st.columns([5, 5])
+# Parameter Selection
+st.subheader("⚙️ Summarization Settings")
+col1, col2 = st.columns([1, 1])
 
-with column_1:
-    tone = st.selectbox("Select the tone", ["Formal", "Informal", "Friendly", "Professional"])
+with col1:
+    tone = st.selectbox("Select Tone", ["Formal", "Informal", "Friendly", "Professional"])
 
-with column_2:
-    word_count = st.text_input("Number of Words")
+with col2:
+    word_count = st.text_input("Word Count", placeholder="Enter a number")
 
-# Summarize button action
-if st.button("Summarize"):
-    response = generate_summary(input_text=user_input, tone=tone, word_count=word_count)
-    st.subheader("The Summary is:")
-    st.write(response)
+# Summarization Button
+if st.button("⚡ Generate Summary"):
+    if not user_input:
+        st.warning("❌ Please provide input (Text, URL, or PDF).")
+    elif not word_count.isdigit():
+        st.warning("❌ Please enter a valid word count.")
+    else:
+        with st.spinner("Generating summary... ⏳"):
+            response = generate_summary(input_text=user_input, tone=tone, word_count=word_count)
 
-    # Download options
-    st.download_button(
-            label="Download as TXT",
-            data=convert_to_txt(response),
-            file_name="summarized_text.txt",
-            mime="text/plain",
-        )
-    st.download_button(
-            label="Download as DOCX",
-            data=convert_to_docx(response),
-            file_name="summarized_text.docx",
-            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        )
-        
+        st.success("✅ Summary generated successfully!")
+        st.subheader("📝 Summary:")
+        st.write(response)
 
+        # Download Buttons
+        col1, col2 = st.columns(2)
+        with col1:
+            st.download_button(
+                label="📄 Download as TXT",
+                data=convert_to_txt(response),
+                file_name="summarized_text.txt",
+                mime="text/plain",
+            )
+        with col2:
+            st.download_button(
+                label="📂 Download as DOCX",
+                data=convert_to_docx(response),
+                file_name="summarized_text.docx",
+                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            )
